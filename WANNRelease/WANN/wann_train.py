@@ -23,6 +23,7 @@ def master():
   global fileName, hyp
   data = DataGatherer(fileName, hyp)
   wann = Wann(hyp)
+  print("Max Gen is {}".format(hyp['maxGen']))
 
   for gen in range(hyp['maxGen']):        
     pop = wann.ask()            # Get newly evolved individuals from WANN  
