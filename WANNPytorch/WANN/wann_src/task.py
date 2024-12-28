@@ -68,7 +68,7 @@ class Task():
     # else:
     #   state, _ = self.env.reset()
     state = self.env.reset()
-    print("task.py(): Task: testInd(): after env.reset(): ")
+    # print("task.py(): Task: testInd(): after env.reset(): ")
 
     self.env.t = 0
 
@@ -82,7 +82,7 @@ class Task():
     else:
       totalReward = reward
     
-    print("task.py(): Task: testInd(): before for tStep in range(self.maxEpisodeLength): ")
+    # print("task.py(): Task: testInd(): before for tStep in range(self.maxEpisodeLength): ")
     for tStep in range(self.maxEpisodeLength): 
       annOut = act(wVec, aVec, self.nInput, self.nOutput, state) 
       action = selectAct(annOut,self.actSelect) 

@@ -51,9 +51,9 @@ except ImportError as e:
 #
 # Created by Oleg Klimov. Licensed on the same terms as the rest of OpenAI Gym.
 
-# FPS    = 50
-FPS    = 200
-SCALE  = 30.0   # affects how fast-paced the game is, forces should be adjusted as well
+FPS    = 50
+# FPS    = 200
+SCALE  = 50.0   # affects how fast-paced the game is, forces should be adjusted as well
 
 MOTORS_TORQUE = 80
 SPEED_HIP     = 4
@@ -321,7 +321,7 @@ class BipedalWalker(gym.Env):
             self.cloud_poly.append( (poly,x1,x2) )
 
     def reset(self):
-        print("bipedal_walker.py: BipedalWalker: reset()")
+        # print("bipedal_walker.py: BipedalWalker: reset()")
         self._destroy()
         self.world.contactListener_bug_workaround = ContactDetector(self)
         self.world.contactListener = self.world.contactListener_bug_workaround
