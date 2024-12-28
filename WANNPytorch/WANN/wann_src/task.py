@@ -3,7 +3,7 @@ import time
 import sys
 import random
 
-# from domain.make_env import make_env
+from domain.make_env import make_env
 from .ind import *
 import gymnasium as gym
 # import gym
@@ -36,14 +36,14 @@ class Task():
     # print(f"inside Task game.env_name is {game.env_name}")
 
     if not paramOnly:
-    #   self.env = make_env(game.env_name)
+      self.env = make_env(game.env_name)
     #   self.env = gym.make(game.env_name, render_mode='human')
-      self.env = gym.make(game.env_name)
+    #   self.env = gym.make(game.env_name)
 
     # Special needs...
-    self.needsClosed = (game.env_name.startswith("CartPoleSwingUp"))    
+    self.needsClosed = (game.env_name.startswith("CartPoleSwingUp"))
+    print("task.py: __init__(): end: paramOnly: ", paramOnly) 
   
-
   def testInd(self, wVec, aVec, view=False,seed=-1):
     """Evaluate individual on task
     Args:
@@ -63,33 +63,40 @@ class Task():
     if seed >= 0:
       random.seed(seed)
       np.random.seed(seed)
-      state, _ = self.env.reset(seed=seed)
-    #   self.env.seed(seed)
-    else:
-      state, _ = self.env.reset(seed=seed)
+    #   state, _ = self.env.reset(seed=seed)
+      self.env.seed(seed)
+    # else:
+    #   state, _ = self.env.reset()
+    state = self.env.reset()
+    print("task.py(): Task: testInd(): after env.reset(): ")
+
     self.env.t = 0
 
     annOut = act(wVec, aVec, self.nInput, self.nOutput, state)  
     action = selectAct(annOut,self.actSelect)    
     # print(self.env.step(action))
-    # state, reward, done, info = self.env.step(action)
-    state, reward, done, _, info = self.env.step(action)
+    state, reward, done, info = self.env.step(action)
+    # state, reward, done, _, info = self.env.step(action)
     if self.maxEpisodeLength == 0:
       return reward
     else:
       totalReward = reward
     
+    print("task.py(): Task: testInd(): before for tStep in range(self.maxEpisodeLength): ")
     for tStep in range(self.maxEpisodeLength): 
       annOut = act(wVec, aVec, self.nInput, self.nOutput, state) 
       action = selectAct(annOut,self.actSelect) 
-    #   state, reward, done, info = self.env.step(action)
-      state, reward, done, _, info = self.env.step(action)
+      state, reward, done, info = self.env.step(action)
+    #   state, reward, done, _, info = self.env.step(action)
       totalReward += reward  
       if view:
         #time.sleep(0.01)
+        # print("task.py(): Task: testInd(): view: ", view)
         if self.needsClosed:
-          self.env.render(close=done)  
+        #   print("task.py(): Task: testInd(): if self.needsClosed: ", self.needsClosed)
+          self.env.render(close=done)
         else:
+        #   print("task.py(): Task: testInd(): if self.needsClosed: else: ")
           self.env.render()
       if done:
         break

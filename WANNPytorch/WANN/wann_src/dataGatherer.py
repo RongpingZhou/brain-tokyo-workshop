@@ -30,6 +30,7 @@ class DataGatherer():
       #e.g. self.fit_max   = np.array([]) 
 
     self.newBest = False
+    print("dataGatherer.py: __init__(): end")
 
   def gatherData(self, pop, species):
     # Readability

@@ -12,6 +12,10 @@ from .task import Task
 
 from .ind import Ind
 
+from mpi4py import MPI
+
+comm = MPI.COMM_WORLD
+
 
 class Wann():
   """WANN main class. Evolves population given fitness values of individuals.
@@ -39,6 +43,7 @@ class Wann():
     self.species = []  # Current species   
     self.innov = []    # Innovation number (gene Id)
     self.gen = 0
+    print("wann.py: __init__(): end")
 
   ''' Subfunctions '''
   from ._variation import evolvePop, recombine, crossover,\
@@ -154,6 +159,7 @@ def loadHyp(pFileName, printHyp=False):
 
   Note: see p/hypkey.txt for detailed hyperparameter description
   """
+  print('wann.py: loadHyp(): ', pFileName, "rank = ", comm.Get_rank())
 
   # Load Parameters from disk
   with open(pFileName) as data_file:    
@@ -173,13 +179,18 @@ def loadHyp(pFileName, printHyp=False):
 
   if printHyp is True:
     print(json.dumps(hyp, indent=4, sort_keys=True))
+  
+  print('wann.py: loadHyp(): end: rank = ', comm.Get_rank())
+
   return hyp
 
 def updateHyp(hyp,pFileName=None):
   """Overwrites default hyperparameters with those from second .json file
   """
-  print('\t*** Running with hyperparameters: ', pFileName, '\t***')
   ''' Overwrites selected parameters those from file '''
+
+  print('wann.py: updateHyp(): \t*** Running with hyperparameters: ', pFileName, '\t***', "rank = ", comm.Get_rank())
+
   if pFileName != None:
     with open(pFileName) as data_file:    
       update = json.load(data_file)
@@ -194,4 +205,7 @@ def updateHyp(hyp,pFileName=None):
     hyp['ann_nOutput']  = task.nOutput
     hyp['ann_initAct']  = task.activations[0]
     hyp['ann_actRange'] = task.actRange
+    print('wann.py: updateHyp(): end: rank = ', comm.Get_rank())
+    # print()
+
 

@@ -6,13 +6,22 @@ import numpy as np
 import Box2D
 from Box2D.b2 import (edgeShape, circleShape, fixtureDef, polygonShape, revoluteJointDef, contactListener)
 
-import gym
-from gym import spaces
-from gym.utils import colorize, seeding
+# import gym
+# from gym import spaces
+# from gym.utils import colorize, seeding
 
-# import gymnasium
-# from gymnasium import spaces
-# from gymnasium.utils import colorize, seeding
+import gymnasium as gym
+from gymnasium import spaces
+from gymnasium.utils import colorize, seeding
+
+try:
+    import pygame
+    from pygame import gfxdraw
+except ImportError as e:
+    raise DependencyNotInstalled(
+        'pygame is not installed, run `pip install "gymnasium[box2d]"`'
+    ) from e
+        
 
 # This is simple 4-joints walker robot environment.
 #
@@ -42,7 +51,8 @@ from gym.utils import colorize, seeding
 #
 # Created by Oleg Klimov. Licensed on the same terms as the rest of OpenAI Gym.
 
-FPS    = 50
+# FPS    = 50
+FPS    = 200
 SCALE  = 30.0   # affects how fast-paced the game is, forces should be adjusted as well
 
 MOTORS_TORQUE = 80
@@ -147,10 +157,14 @@ class BipedalWalker(gym.Env):
         self.reset()
 
         high = np.array([np.inf]*24)
-        self.action_space = spaces.Box(np.array([-1,-1,-1,-1]), np.array([+1,+1,+1,+1]))
+        # self.action_space = spaces.Box(np.array([-1,-1,-1,-1]), np.array([+1,+1,+1,+1]))
+        self.action_space = spaces.Box(np.array([-1,-1,-1,-1]).astype(np.float32), np.array([+1,+1,+1,+1]).astype(np.float32))
         self.observation_space = spaces.Box(-high, high)
 
         self.timer = 0
+        self.screen: Optional[pygame.Surface] = None
+        self.clock = None 
+        print("bipedal_walker.py: BipedalWalker: __init__()")
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -189,7 +203,8 @@ class BipedalWalker(gym.Env):
                 y += velocity
 
             elif state==PIT and oneshot:
-                counter = self.np_random.randint(3, 5)
+                # counter = self.np_random.randint(3, 5)
+                counter = self.np_random.integers(3, 5)
                 poly = [
                     (x,              y),
                     (x+TERRAIN_STEP, y),
@@ -216,7 +231,8 @@ class BipedalWalker(gym.Env):
                     y -= 4*TERRAIN_STEP
 
             elif state==STUMP and oneshot:
-                counter = self.np_random.randint(1, 3)
+                # counter = self.np_random.randint(1, 3)
+                counter = self.np_random.integers(1, 3)
                 poly = [
                     (x,                      y),
                     (x+counter*TERRAIN_STEP, y),
@@ -226,13 +242,16 @@ class BipedalWalker(gym.Env):
                 self.fd_polygon.shape.vertices=poly
                 t = self.world.CreateStaticBody(
                     fixtures = self.fd_polygon)
-                t.color1, t.color2 = (1,1,1), (0.6,0.6,0.6)
+                # t.color1, t.color2 = (1,1,1), (0.6,0.6,0.6)
+                t.color1, t.color2 = (255, 255, 255), (153, 153, 153)
                 self.terrain.append(t)
 
             elif state==STAIRS and oneshot:
                 stair_height = +1 if self.np_random.rand() > 0.5 else -1
-                stair_width = self.np_random.randint(4, 5)
-                stair_steps = self.np_random.randint(3, 5)
+                # stair_width = self.np_random.randint(4, 5)
+                stair_width = self.np_random.integers(4, 5)
+                # stair_steps = self.np_random.randint(3, 5)
+                stair_steps = self.np_random.integers(3, 5)
                 original_y = y
                 for s in range(stair_steps):
                     poly = [
@@ -244,7 +263,8 @@ class BipedalWalker(gym.Env):
                     self.fd_polygon.shape.vertices=poly
                     t = self.world.CreateStaticBody(
                         fixtures = self.fd_polygon)
-                    t.color1, t.color2 = (1,1,1), (0.6,0.6,0.6)
+                    # t.color1, t.color2 = (1,1,1), (0.6,0.6,0.6)
+                    t.color1, t.color2 = (255, 255, 255), (153, 153, 153)
                     self.terrain.append(t)
                 counter = stair_steps*stair_width
 
@@ -257,8 +277,8 @@ class BipedalWalker(gym.Env):
             self.terrain_y.append(y)
             counter -= 1
             if counter==0:
-                counter = self.np_random.randint(TERRAIN_GRASS/2, TERRAIN_GRASS)
-                # counter = self.np_random.integers(TERRAIN_GRASS/2, TERRAIN_GRASS)
+                # counter = self.np_random.randint(TERRAIN_GRASS/2, TERRAIN_GRASS)
+                counter = self.np_random.integers(TERRAIN_GRASS/2, TERRAIN_GRASS)
                 if state==GRASS and hardcore:
                     state = self.np_random.randint(1, _STATES_)
                     oneshot = True
@@ -275,11 +295,13 @@ class BipedalWalker(gym.Env):
             self.fd_edge.shape.vertices=poly
             t = self.world.CreateStaticBody(
                 fixtures = self.fd_edge)
-            color = (0.3, 1.0 if i%2==0 else 0.8, 0.3)
+            # color = (0.3, 1.0 if i%2==0 else 0.8, 0.3)
+            color = (76, 255 if i % 2 == 0 else 204, 76)
             t.color1 = color
             t.color2 = color
             self.terrain.append(t)
-            color = (0.4, 0.6, 0.3)
+            # color = (0.4, 0.6, 0.3)
+            color = (102, 153, 76)
             poly += [ (poly[1][0], 0), (poly[0][0], 0) ]
             self.terrain_poly.append( (poly, color) )
         self.terrain.reverse()
@@ -299,6 +321,7 @@ class BipedalWalker(gym.Env):
             self.cloud_poly.append( (poly,x1,x2) )
 
     def reset(self):
+        print("bipedal_walker.py: BipedalWalker: reset()")
         self._destroy()
         self.world.contactListener_bug_workaround = ContactDetector(self)
         self.world.contactListener = self.world.contactListener_bug_workaround
@@ -321,8 +344,10 @@ class BipedalWalker(gym.Env):
             position = (init_x, init_y),
             fixtures = HULL_FD
                 )
-        self.hull.color1 = (0.5,0.4,0.9)
-        self.hull.color2 = (0.3,0.3,0.5)
+        # self.hull.color1 = (0.5,0.4,0.9)
+        # self.hull.color2 = (0.3,0.3,0.5)
+        self.hull.color1 = (127, 51, 229)
+        self.hull.color2 = (76, 76, 127)
         self.hull.ApplyForceToCenter((self.np_random.uniform(-INITIAL_RANDOM, INITIAL_RANDOM), 0), True)
 
         self.legs = []
@@ -333,8 +358,10 @@ class BipedalWalker(gym.Env):
                 angle = (i*0.05),
                 fixtures = LEG_FD
                 )
-            leg.color1 = (0.6-i/10., 0.3-i/10., 0.5-i/10.)
-            leg.color2 = (0.4-i/10., 0.2-i/10., 0.3-i/10.)
+            # leg.color1 = (0.6-i/10., 0.3-i/10., 0.5-i/10.)
+            # leg.color2 = (0.4-i/10., 0.2-i/10., 0.3-i/10.)
+            leg.color1 = (153 - i * 25, 76 - i * 25, 127 - i * 25)
+            leg.color2 = (102 - i * 25, 51 - i * 25, 76 - i * 25)
             rjd = revoluteJointDef(
                 bodyA=self.hull,
                 bodyB=leg,
@@ -355,8 +382,10 @@ class BipedalWalker(gym.Env):
                 angle = (i*0.05),
                 fixtures = LOWER_FD
                 )
-            lower.color1 = (0.6-i/10., 0.3-i/10., 0.5-i/10.)
-            lower.color2 = (0.4-i/10., 0.2-i/10., 0.3-i/10.)
+            # lower.color1 = (0.6-i/10., 0.3-i/10., 0.5-i/10.)
+            # lower.color2 = (0.4-i/10., 0.2-i/10., 0.3-i/10.)
+            lower.color1 = (153 - i * 25, 76 - i * 25, 127 - i * 25)
+            lower.color2 = (102 - i * 25, 51 - i * 25, 76 - i * 25)
             rjd = revoluteJointDef(
                 bodyA=leg,
                 bodyB=lower,
@@ -468,62 +497,245 @@ class BipedalWalker(gym.Env):
 
         return np.array(state), reward, done, {}
 
-    def render(self, mode='human', close=False):
+    # def render(self, mode='human', close=False):
+    #     if close:
+    #         if self.viewer is not None:
+    #             self.viewer.close()
+    #             self.viewer = None
+    #         return
+
+        
+    #     # from gymnasium.envs.classic_control import rendering
+    #     from gym.envs.classic_control import rendering
+    #     if self.viewer is None:
+    #         self.viewer = rendering.Viewer(VIEWPORT_W, VIEWPORT_H)
+    #     self.viewer.set_bounds(self.scroll, VIEWPORT_W/SCALE + self.scroll, 0, VIEWPORT_H/SCALE)
+
+    #     self.viewer.draw_polygon( [
+    #         (self.scroll,                  0),
+    #         (self.scroll+VIEWPORT_W/SCALE, 0),
+    #         (self.scroll+VIEWPORT_W/SCALE, VIEWPORT_H/SCALE),
+    #         (self.scroll,                  VIEWPORT_H/SCALE),
+    #         ], color=(0.9, 0.9, 1.0) )
+    #     for poly,x1,x2 in self.cloud_poly:
+    #         if x2 < self.scroll/2: continue
+    #         if x1 > self.scroll/2 + VIEWPORT_W/SCALE: continue
+    #         self.viewer.draw_polygon( [(p[0]+self.scroll/2, p[1]) for p in poly], color=(1,1,1))
+    #     for poly, color in self.terrain_poly:
+    #         if poly[1][0] < self.scroll: continue
+    #         if poly[0][0] > self.scroll + VIEWPORT_W/SCALE: continue
+    #         self.viewer.draw_polygon(poly, color=color)
+
+    #     self.lidar_render = (self.lidar_render+1) % 100
+    #     i = self.lidar_render
+    #     if i < 2*len(self.lidar):
+    #         l = self.lidar[i] if i < len(self.lidar) else self.lidar[len(self.lidar)-i-1]
+    #         self.viewer.draw_polyline( [l.p1, l.p2], color=(1,0,0), linewidth=1 )
+
+    #     for obj in self.drawlist:
+    #         for f in obj.fixtures:
+    #             trans = f.body.transform
+    #             if type(f.shape) is circleShape:
+    #                 t = rendering.Transform(translation=trans*f.shape.pos)
+    #                 self.viewer.draw_circle(f.shape.radius, 30, color=obj.color1).add_attr(t)
+    #                 self.viewer.draw_circle(f.shape.radius, 30, color=obj.color2, filled=False, linewidth=2).add_attr(t)
+    #             else:
+    #                 path = [trans*v for v in f.shape.vertices]
+    #                 self.viewer.draw_polygon(path, color=obj.color1)
+    #                 path.append(path[0])
+    #                 self.viewer.draw_polyline(path, color=obj.color2, linewidth=2)
+
+    #     flagy1 = TERRAIN_HEIGHT
+    #     flagy2 = flagy1 + 50/SCALE
+    #     x = TERRAIN_STEP*3
+    #     self.viewer.draw_polyline( [(x, flagy1), (x, flagy2)], color=(0,0,0), linewidth=2 )
+    #     f = [(x, flagy2), (x, flagy2-10/SCALE), (x+25/SCALE, flagy2-5/SCALE)]
+    #     self.viewer.draw_polygon(f, color=(0.9,0.2,0) )
+    #     self.viewer.draw_polyline(f + [f[0]], color=(0,0,0), linewidth=2 )
+
+    #     return self.viewer.render(return_rgb_array = mode=='rgb_array')
+
+    def render(self, mode = 'human', close=False):
         if close:
+            print("bipedal_walker.py: BipedalWalker: render(): close: ", close)
             if self.viewer is not None:
                 self.viewer.close()
                 self.viewer = None
             return
+        
+        # print("bipedal_walker.py: BipedalWalker: render(): self.screen: ", self.screen)
+        
+        # if self.render_mode is None:
+        #     assert self.spec is not None
+        #     gym.logger.warn(
+        #         "You are calling render method without specifying any render mode. "
+        #         "You can specify the render_mode at initialization, "
+        #         f'e.g. gym.make("{self.spec.id}", render_mode="rgb_array")'
+        #     )
+        #     return
+        
+        # if self.screen is None and self.render_mode == "human":
+        if self.screen is None and mode == "human":
+            pygame.init()
+            pygame.display.init()
+            self.screen = pygame.display.set_mode((VIEWPORT_W, VIEWPORT_H))            
+            print("bipedal_walker.py: BipedalWalker: render(): type of self.screen: ", type(self.screen))
+        if self.clock is None:
+            self.clock = pygame.time.Clock()
+            print("bipedal_walker.py: BipedalWalker: render(): type of self.clock: ", type(self.clock))
 
-        # from gymnasium.envs.classic_control import rendering
-        from gym.envs.classic_control import rendering
-        if self.viewer is None:
-            self.viewer = rendering.Viewer(VIEWPORT_W, VIEWPORT_H)
-        self.viewer.set_bounds(self.scroll, VIEWPORT_W/SCALE + self.scroll, 0, VIEWPORT_H/SCALE)
+        # self.surf = pygame.Surface(
+        self.viewer = pygame.Surface(
+            (VIEWPORT_W + max(0.0, self.scroll) * SCALE, VIEWPORT_H)
+        )
+        # print("bipedal_walker.py: BipedalWalker: render(): type of self.viewer: ", type(self.viewer))
 
-        self.viewer.draw_polygon( [
-            (self.scroll,                  0),
-            (self.scroll+VIEWPORT_W/SCALE, 0),
-            (self.scroll+VIEWPORT_W/SCALE, VIEWPORT_H/SCALE),
-            (self.scroll,                  VIEWPORT_H/SCALE),
-            ], color=(0.9, 0.9, 1.0) )
-        for poly,x1,x2 in self.cloud_poly:
-            if x2 < self.scroll/2: continue
-            if x1 > self.scroll/2 + VIEWPORT_W/SCALE: continue
-            self.viewer.draw_polygon( [(p[0]+self.scroll/2, p[1]) for p in poly], color=(1,1,1))
+        # pygame.transform.scale(self.surf, (SCALE, SCALE))
+        pygame.transform.scale(self.viewer, (SCALE, SCALE))
+
+        pygame.draw.polygon(
+            # self.surf,
+            self.viewer,
+            color=(215, 215, 255),
+            points=[
+                (self.scroll * SCALE, 0),
+                (self.scroll * SCALE + VIEWPORT_W, 0),
+                (self.scroll * SCALE + VIEWPORT_W, VIEWPORT_H),
+                (self.scroll * SCALE, VIEWPORT_H),
+            ],
+        )
+
+        for poly, x1, x2 in self.cloud_poly:
+            if x2 < self.scroll / 2:
+                continue
+            if x1 > self.scroll / 2 + VIEWPORT_W / SCALE:
+                continue
+            pygame.draw.polygon(
+                # self.surf,
+                self.viewer,
+                color=(255, 255, 255),
+                points=[
+                    (p[0] * SCALE + self.scroll * SCALE / 2, p[1] * SCALE) for p in poly
+                ],
+            )
+            gfxdraw.aapolygon(
+                # self.surf,
+                self.viewer,
+                [(p[0] * SCALE + self.scroll * SCALE / 2, p[1] * SCALE) for p in poly],
+                (255, 255, 255),
+            )
         for poly, color in self.terrain_poly:
-            if poly[1][0] < self.scroll: continue
-            if poly[0][0] > self.scroll + VIEWPORT_W/SCALE: continue
-            self.viewer.draw_polygon(poly, color=color)
+            if poly[1][0] < self.scroll:
+                continue
+            if poly[0][0] > self.scroll + VIEWPORT_W / SCALE:
+                continue
+            scaled_poly = []
+            for coord in poly:
+                scaled_poly.append([coord[0] * SCALE, coord[1] * SCALE])
+            # pygame.draw.polygon(self.surf, color=color, points=scaled_poly)
+            pygame.draw.polygon(self.viewer, color=color, points=scaled_poly)
+            # gfxdraw.aapolygon(self.surf, scaled_poly, color)
+            gfxdraw.aapolygon(self.viewer, scaled_poly, color)
 
-        self.lidar_render = (self.lidar_render+1) % 100
+        self.lidar_render = (self.lidar_render + 1) % 100
         i = self.lidar_render
-        if i < 2*len(self.lidar):
-            l = self.lidar[i] if i < len(self.lidar) else self.lidar[len(self.lidar)-i-1]
-            self.viewer.draw_polyline( [l.p1, l.p2], color=(1,0,0), linewidth=1 )
+        if i < 2 * len(self.lidar):
+            single_lidar = (
+                self.lidar[i]
+                if i < len(self.lidar)
+                else self.lidar[len(self.lidar) - i - 1]
+            )
+            if hasattr(single_lidar, "p1") and hasattr(single_lidar, "p2"):
+                pygame.draw.line(
+                    # self.surf,
+                    self.viewer,
+                    color=(255, 0, 0),
+                    start_pos=(single_lidar.p1[0] * SCALE, single_lidar.p1[1] * SCALE),
+                    end_pos=(single_lidar.p2[0] * SCALE, single_lidar.p2[1] * SCALE),
+                    width=1,
+                )
 
         for obj in self.drawlist:
             for f in obj.fixtures:
                 trans = f.body.transform
                 if type(f.shape) is circleShape:
-                    t = rendering.Transform(translation=trans*f.shape.pos)
-                    self.viewer.draw_circle(f.shape.radius, 30, color=obj.color1).add_attr(t)
-                    self.viewer.draw_circle(f.shape.radius, 30, color=obj.color2, filled=False, linewidth=2).add_attr(t)
+                    pygame.draw.circle(
+                        # self.surf,
+                        self.viewer,
+                        color=obj.color1,
+                        center=trans * f.shape.pos * SCALE,
+                        radius=f.shape.radius * SCALE,
+                    )
+                    pygame.draw.circle(
+                        # self.surf,
+                        self.viewer,
+                        color=obj.color2,
+                        center=trans * f.shape.pos * SCALE,
+                        radius=f.shape.radius * SCALE,
+                    )
                 else:
-                    path = [trans*v for v in f.shape.vertices]
-                    self.viewer.draw_polygon(path, color=obj.color1)
-                    path.append(path[0])
-                    self.viewer.draw_polyline(path, color=obj.color2, linewidth=2)
+                    path = [trans * v * SCALE for v in f.shape.vertices]
+                    if len(path) > 2:
+                        # pygame.draw.polygon(self.surf, color=obj.color1, points=path)
+                        pygame.draw.polygon(self.viewer, color=obj.color1, points=path)
+                        # gfxdraw.aapolygon(self.surf, path, obj.color1)
+                        gfxdraw.aapolygon(self.viewer, path, obj.color1)
+                        path.append(path[0])
+                        pygame.draw.polygon(
+                            # self.surf, color=obj.color2, points=path, width=1
+                            self.viewer, color=obj.color2, points=path, width=1
+                        )
+                        # gfxdraw.aapolygon(self.surf, path, obj.color2)
+                        gfxdraw.aapolygon(self.viewer, path, obj.color2)
+                    else:
+                        pygame.draw.aaline(
+                            # self.surf,
+                            self.viewer,
+                            start_pos=path[0],
+                            end_pos=path[1],
+                            color=obj.color1,
+                        )
 
-        flagy1 = TERRAIN_HEIGHT
-        flagy2 = flagy1 + 50/SCALE
-        x = TERRAIN_STEP*3
-        self.viewer.draw_polyline( [(x, flagy1), (x, flagy2)], color=(0,0,0), linewidth=2 )
-        f = [(x, flagy2), (x, flagy2-10/SCALE), (x+25/SCALE, flagy2-5/SCALE)]
-        self.viewer.draw_polygon(f, color=(0.9,0.2,0) )
-        self.viewer.draw_polyline(f + [f[0]], color=(0,0,0), linewidth=2 )
+        flagy1 = TERRAIN_HEIGHT * SCALE
+        flagy2 = flagy1 + 50
+        x = TERRAIN_STEP * 3 * SCALE
+        pygame.draw.aaline(
+            # self.surf, color=(0, 0, 0), start_pos=(x, flagy1), end_pos=(x, flagy2)
+            self.viewer, color=(0, 0, 0), start_pos=(x, flagy1), end_pos=(x, flagy2)
+        )
+        f = [
+            (x, flagy2),
+            (x, flagy2 - 10),
+            (x + 25, flagy2 - 5),
+        ]
+        # pygame.draw.polygon(self.surf, color=(230, 51, 0), points=f)
+        pygame.draw.polygon(self.viewer, color=(230, 51, 0), points=f)
+        pygame.draw.lines(
+            # self.surf, color=(0, 0, 0), points=f + [f[0]], width=1, closed=False
+            self.viewer, color=(0, 0, 0), points=f + [f[0]], width=1, closed=False
+        )
 
-        return self.viewer.render(return_rgb_array = mode=='rgb_array')
+        # self.surf = pygame.transform.flip(self.surf, False, True)
+        self.viewer = pygame.transform.flip(self.viewer, False, True)
+
+        # if self.render_mode == "human":
+        if mode == "human":
+            # print("bipedal_walker.py: BipedalWalker: render(): mode == \"human\" ")
+            assert self.screen is not None
+            # self.screen.blit(self.surf, (-self.scroll * SCALE, 0))
+            self.screen.blit(self.viewer, (-self.scroll * SCALE, 0))
+            pygame.event.pump()
+            # self.clock.tick(self.metadata["render_fps"])
+            self.clock.tick(FPS)
+            pygame.display.flip()
+        # elif self.render_mode == "rgb_array":
+        elif mode == "rgb_array":
+            print("bipedal_walker.py: BipedalWalker: render(): mode == \"rgb_array\" ")
+            return np.transpose(
+                # np.array(pygame.surfarray.pixels3d(self.surf)), axes=(1, 0, 2)
+                np.array(pygame.surfarray.pixels3d(self.viewer)), axes=(1, 0, 2)
+            )[:, -VIEWPORT_W:]
+
 
 class BipedalWalkerHardcore(BipedalWalker):
     hardcore = True
@@ -602,6 +814,8 @@ if __name__=="__main__":
         a[2] = hip_todo[1]
         a[3] = knee_todo[1]
         a = np.clip(0.5*a, -1.0, 1.0)
+
+        print("bipedal_walker.py: before env.render()")
 
         env.render()
         if done: break

@@ -21,9 +21,11 @@ def master():
   """Main WANN optimization script
   """
   global fileName, hyp
+
+  print("wann_train.py: master(): inside, rank = ", rank)
   data = DataGatherer(fileName, hyp)
   wann = Wann(hyp)
-  print("Max Gen is {}".format(hyp['maxGen']))
+  print("wann_train.py: master(): rank = {}, Max Gen is {}".format(rank, hyp['maxGen']))
 
   for gen in range(hyp['maxGen']):        
     pop = wann.ask()            # Get newly evolved individuals from WANN  
@@ -185,8 +187,13 @@ def slave():
   PseudoReturn (sent to master):
     result - (float)    - fitness value of network
   """  
-  global hyp  
+  global hyp
+
+  print("wann_train.py: slave(): inside, rank = ", rank)
+
   task = Task(games[hyp['task']], nReps=hyp['alg_nReps'])
+
+  print("wann_train.py: slave(): after task init, rank = ", rank)
 
   # Evaluate any weight vectors sent this way
   while True:
@@ -200,8 +207,10 @@ def slave():
       comm.Recv(aVec, source=0,  tag=4) # recieve it
 
       seed = comm.recv(source=0, tag=5) # random seed as int
-
+      
+      print("wann_train.py: slave(): before task.getDistFitness, rank = ", rank)
       result = task.getDistFitness(wVec,aVec,hyp,seed=seed) # process it
+      print("wann_train.py: slave(): after task.getDistFitness, rank = ", rank, " result: ", result)
 
       comm.Send(result, dest=0) # send it back
 
@@ -226,20 +235,28 @@ def mpi_fork(n):
   if n<=1:
     return "child"
   if os.getenv("IN_MPI") is None:
+    print("wann_train.py: mpifork(): os.getenv(\"IN_MPI\"): ", os.getenv("IN_MPI"))
+
     env = os.environ.copy()
     env.update(
       MKL_NUM_THREADS="1",
       OMP_NUM_THREADS="1",
       IN_MPI="1"
     )
-    print( ["mpirun", "-np", str(n), sys.executable] + sys.argv)
+    print("wann_trian.py: mpi_fork(), before subprocess")
+    # print( ["mpirun", "-np", str(n), sys.executable] + sys.argv)
+    a = sys.executable
+    b = sys.argv
+    print("mpirun -np {}, {}  -u {}".format(n, a, b))
     subprocess.check_call(["mpirun", "-np", str(n), sys.executable] +['-u']+ sys.argv, env=env)
+    print("wann_train.py: mpifork(): after subprocess")
     return "parent"
   else:
+    print("wann_train.py: mpifork(): os.getenv(\"IN_MPI\"): ", os.getenv("IN_MPI"))
     global nWorker, rank
     nWorker = comm.Get_size()
     rank = comm.Get_rank()
-    #print('assigning the rank and nworkers', nWorker, rank)
+    print('wann_train.py: mpi_fork(): assigning the rank and nworkers', nWorker, rank)
     return "child"
 
 
@@ -254,13 +271,22 @@ def main(argv):
   hyp_default = args.default
   hyp_adjust  = args.hyperparam
 
+  print("wann_train.py: main.c: rank = ", rank, " args: ", args)
+
   hyp = loadHyp(pFileName=hyp_default)
+  print("wann_train.py: main.c: after loadHyp, rank = ", rank)
+
   updateHyp(hyp,hyp_adjust)
+  print("wann_train.py: main.c: after updateHyp, rank = ", rank)
+
+  print("wann_train.py: main.c: rank = ", rank, " hyp: ", hyp)
 
   # Launch main thread and workers
   if (rank == 0):
+    print("wann_train.py: main(): start master(): rank = ", rank)
     master()
   else:
+    print("wann_train.py: main(): start slave(): rank = ", rank)
     slave()
 
 if __name__ == "__main__":
@@ -281,6 +307,12 @@ if __name__ == "__main__":
 
   args = parser.parse_args()
 
+  print("wann_train.py: args: ", args)
+  print("wann_train.py: rank: ", rank)
+
+  print("wann_train.py: before mpi_fork")
+
+#   nWorker = args.num_worker
 
   # Use MPI if parallel
   if "parent" == mpi_fork(args.num_worker+1): os._exit(0)
