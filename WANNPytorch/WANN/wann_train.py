@@ -15,6 +15,39 @@ rank = comm.Get_rank()
 from wann_src import * # WANN evolution
 from domain import *   # Task environments
 
+def master_pytorch(): 
+  """Main WANN optimization script
+  """
+  global fileName, hyp
+
+  print("wann_train.py: master(): inside, type of hyp ", type(hyp))
+  print("wann_train.py: master(): inside, rank = ", rank)
+  data = DataGatherer(fileName, hyp)
+  wann = Wann(hyp)
+  print("wann_train.py: master(): rank = {}, Max Gen is {}".format(rank, hyp['maxGen']))
+  print()
+  print("*" * 80)
+
+  for gen in range(hyp['maxGen']):
+    print()
+    pop = wann.ask()            # Get newly evolved individuals from WANN
+    print("wann_train.py: master(): gen: ", gen, "pop length", len(pop))
+    # print(pop[0].node)
+    # print(pop[0].conn)
+    # reward = batchMpiEval(pop)  # Send pop to evaluate
+    reward = batchEval(pop)  # Send pop to evaluate
+    print("wann_train.py: master(): type of reward: ", type(reward))
+    print(reward)
+    wann.tell(reward)           # Send fitness to WANN
+
+    data = gatherData(data,wann,gen,hyp)
+    print(gen, '\t - \t', data.display())
+
+  # Clean up and data gathering at end of run
+  data = gatherData(data,wann,gen,hyp,savePop=True)
+  data.save()
+  data.savePop(wann.pop,fileName)
+  stopAllWorkers()
 
 # -- Run NE -------------------------------------------------------------- -- #
 def master(): 
@@ -22,15 +55,25 @@ def master():
   """
   global fileName, hyp
 
+  print("wann_train.py: master(): inside, type of hyp ", type(hyp))
   print("wann_train.py: master(): inside, rank = ", rank)
   data = DataGatherer(fileName, hyp)
   wann = Wann(hyp)
   print("wann_train.py: master(): rank = {}, Max Gen is {}".format(rank, hyp['maxGen']))
+  print()
+  print("*" * 80)
 
-  for gen in range(hyp['maxGen']):        
-    pop = wann.ask()            # Get newly evolved individuals from WANN  
-    reward = batchMpiEval(pop)  # Send pop to evaluate
-    wann.tell(reward)           # Send fitness to WANN    
+  for gen in range(hyp['maxGen']):
+    print()
+    pop = wann.ask()            # Get newly evolved individuals from WANN
+    print("wann_train.py: master(): gen: ", gen, "pop length", len(pop))
+    # print(pop[0].node)
+    # print(pop[0].conn)
+    # reward = batchMpiEval(pop)  # Send pop to evaluate
+    reward = batchEval(pop)  # Send pop to evaluate
+    print("wann_train.py: master(): type of reward: ", type(reward))
+    print(reward)
+    wann.tell(reward)           # Send fitness to WANN
 
     data = gatherData(data,wann,gen,hyp)
     print(gen, '\t - \t', data.display())
@@ -104,6 +147,115 @@ def checkBest(data):
       data.newBest = False
   return data
 
+def batchEval(pop, sameSeedForEachIndividual=True):
+    """Sends population to workers for evaluation one batch at a time.
+
+    Args:
+    pop - [Ind] - list of individuals
+        .wMat - (np_array) - weight matrix of network
+                [N X N] 
+        .aVec - (np_array) - activation function of each node
+                [N X 1]
+
+
+    Optional:
+        sameSeedForEachIndividual - (bool) - use same seed for each individual?
+
+    Return:
+    reward  - (np_array) - fitness value of each individual
+                [N X 1]
+
+    Todo:
+    * Asynchronous evaluation instead of batches
+    """  
+    global nWorker, hyp
+    #   nSlave = nWorker-1
+    nJobs = len(pop)
+    #   nBatch= math.ceil(nJobs/nSlave) # First worker is master
+    nBatch= nJobs
+    print(" nJobs: ", nJobs, " nBatch: ", nBatch)
+    # global hyp
+
+    #   print("wann_train.py: slave(): inside, rank = ", rank)
+
+    task = Task(games[hyp['task']], nReps=hyp['alg_nReps'])
+
+    print("wann_train.py: batchEval(): after task init, rank = ", rank)
+
+    # Set same seed for each individual
+    if sameSeedForEachIndividual is False:
+        seed = np.random.randint(1000, size=nJobs)
+    else:
+        seed = np.random.randint(1000)
+
+    reward = np.empty((nJobs,hyp['alg_nVals']), dtype=np.float64)
+    i = 0 # Index of fitness we are filling
+    for iBatch in range(nBatch): # Send one batch of individuals
+        # for iWork in range(nSlave): # (one to each worker if there)
+        if i < nJobs:
+            # print("wann_train.py: batchMpiEval(): iBatch: ", iBatch, " iWork: ", iWork, " i: ", i)
+            print("wann_train.py: batchMpiEval(): iBatch: ", iBatch, " i: ", i)
+            wVec   = pop[i].wMat.flatten()
+            print("wann_train.py: batchEval(): wVec shape: ", np.shape(wVec))
+
+            n_wVec = np.shape(wVec)[0]
+            print("wann_train.py: batchEval(): n_wVec: ", n_wVec)
+
+            aVec   = pop[i].aVec.flatten()
+            print("wann_train.py: batchEval(): aVec shape: ", np.shape(aVec))
+
+            n_aVec = np.shape(aVec)[0]
+            print("wann_train.py: batchEval(): n_aVec: ", n_aVec)
+            
+            if sameSeedForEachIndividual is False:
+            #   comm.send(seed.item(i), dest=(iWork)+1, tag=5)
+                fseed = seed.item(i)
+            else:
+            #   comm.send(  seed, dest=(iWork)+1, tag=5)
+                fseed = seed     
+
+            # Evaluate any weight vectors sent this way
+            # while True:
+            # comm.send(n_wVec, dest=(iWork)+1, tag=1)
+            # n_wVec = comm.recv(source=0,  tag=1)
+            # how long is the array that's coming?
+            if n_wVec > 0:
+            #   wVec = np.empty(n_wVec, dtype='d')# allocate space to receive weights
+            #   comm.Send(  wVec, dest=(iWork)+1, tag=2)
+            #   comm.Recv(wVec, source=0,  tag=2) # recieve weights
+
+            #   comm.send(n_aVec, dest=(iWork)+1, tag=3)
+            #   n_aVec = comm.recv(source=0,tag=3)# how long is the array that's coming?
+
+            #   comm.Send(  aVec, dest=(iWork)+1, tag=4)
+            #   aVec = np.empty(n_aVec, dtype='d')# allocate space to receive activation
+            #   comm.Recv(aVec, source=0,  tag=4) # recieve it
+
+            #   seed = comm.recv(source=0, tag=5) # random seed as int
+                
+            #   print("wann_train.py: slave(): before task.getDistFitness, rank = ", rank)
+            #   result = task.getDistFitness(wVec,aVec,hyp,seed=seed) # process it
+                result = task.getDistFitness(wVec,aVec,hyp,seed=fseed) # process it
+            #   print("wann_train.py: slave(): after task.getDistFitness, rank = ", rank, " result: ", result)
+
+            # comm.Send(result, dest=0) # send it back
+            # comm.Recv(workResult, source=iWork)
+
+                reward[i,:] = result
+
+            if n_wVec < 0: # End signal recieved
+                # print('Worker # ', rank, ' shutting down.')
+                break
+
+
+        else: # message size of 0 is signal to shutdown workers
+            n_wVec = 0
+            # comm.send(n_wVec,  dest=(iWork)+1)
+
+        i = i+1
+
+    return reward
+
 
 # -- Parallelization ----------------------------------------------------- -- #
 def batchMpiEval(pop, sameSeedForEachIndividual=True):
@@ -131,6 +283,7 @@ def batchMpiEval(pop, sameSeedForEachIndividual=True):
   nSlave = nWorker-1
   nJobs = len(pop)
   nBatch= math.ceil(nJobs/nSlave) # First worker is master
+  print("nSlave: ", nSlave, " nJobs: ", nJobs, " nBatch: ", nBatch)
 
   # Set same seed for each individual
   if sameSeedForEachIndividual is False:
@@ -143,6 +296,7 @@ def batchMpiEval(pop, sameSeedForEachIndividual=True):
   for iBatch in range(nBatch): # Send one batch of individuals
     for iWork in range(nSlave): # (one to each worker if there)
       if i < nJobs:
+        print("wann_train.py: batchMpiEval(): iBatch: ", iBatch, " iWork: ", iWork, " i: ", i)
         wVec   = pop[i].wMat.flatten()
         n_wVec = np.shape(wVec)[0]
         aVec   = pop[i].aVec.flatten()
@@ -208,9 +362,9 @@ def slave():
 
       seed = comm.recv(source=0, tag=5) # random seed as int
       
-      print("wann_train.py: slave(): before task.getDistFitness, rank = ", rank)
+    #   print("wann_train.py: slave(): before task.getDistFitness, rank = ", rank)
       result = task.getDistFitness(wVec,aVec,hyp,seed=seed) # process it
-      print("wann_train.py: slave(): after task.getDistFitness, rank = ", rank, " result: ", result)
+    #   print("wann_train.py: slave(): after task.getDistFitness, rank = ", rank, " result: ", result)
 
       comm.Send(result, dest=0) # send it back
 
@@ -281,6 +435,7 @@ def main(argv):
 
   print("wann_train.py: main.c: rank = ", rank, " hyp: ", hyp)
 
+
   # Launch main thread and workers
   if (rank == 0):
     print("wann_train.py: main(): start master(): rank = ", rank)
@@ -315,7 +470,7 @@ if __name__ == "__main__":
 #   nWorker = args.num_worker
 
   # Use MPI if parallel
-  if "parent" == mpi_fork(args.num_worker+1): os._exit(0)
+#   if "parent" == mpi_fork(args.num_worker+1): os._exit(0)
 
   main(args)                              
   

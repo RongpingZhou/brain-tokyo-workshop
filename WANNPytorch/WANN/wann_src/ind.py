@@ -1,5 +1,7 @@
 import numpy as np
 import copy
+import torch
+import math
 
 
 # -- Individual Class ---------------------------------------------------- -- #
@@ -210,13 +212,19 @@ def act(weights, aVec, nInput, nOutput, inPattern):
                 [1 X nOutput] or [nSamples X nOutput]
   """
   # Turn weight vector into weight matrix
-  if np.ndim(weights) < 2:
-      nNodes = int(np.sqrt(np.shape(weights)[0]))
-      wMat = np.reshape(weights, (nNodes, nNodes))
+#   if np.ndim(weights) < 2:
+  if weights.ndim < 2:
+    #   nNodes = int(np.sqrt(np.shape(weights)[0]))
+      nNodes = int(torch.sqrt(weights.shape[0]))
+    #   wMat = np.reshape(weights, (nNodes, nNodes))
+      wMat = torch.reshape(weights, (nNodes, nNodes))
   else:
-      nNodes = np.shape(weights)[0]
+    #   nNodes = np.shape(weights)[0]
+      nNodes = weights.shape[0]
       wMat = weights
-  wMat[np.isnan(wMat)]=0
+#   wMat[np.isnan(wMat)]=0
+#   print("ind.py: act(): type of wMat: ", type(wMat))
+  wMat[torch.isnan(wMat)]=0
 
   # Vectorize input
 #   print("type of inPattern is: ", type(inPattern))
@@ -234,14 +242,18 @@ def act(weights, aVec, nInput, nOutput, inPattern):
 #   print("np.ndim(inPattern))", np.ndim(inPattern))
 #   if np.ndim(inPattern[0]) > 1:
 #       nSamples = np.shape(inPattern[0])[0]
-  if np.ndim(inPattern) > 1:
-      nSamples = np.shape(inPattern)[0]
+
+#   if np.ndim(inPattern) > 1:
+  if inPattern.ndim > 1:
+    #   nSamples = np.shape(inPattern)[0]
+      nSamples = inPattern.shape[0]
   else:
       nSamples = 1
 
   # Run input pattern through ANN
 #   print("nSamples is: ", nSamples)    
-  nodeAct  = np.zeros((nSamples,nNodes))
+#   nodeAct  = np.zeros((nSamples,nNodes))
+  nodeAct  = torch.zeros((nSamples,nNodes))
   nodeAct[:,0] = 1 # Bias activation
 #   nodeAct[:,1:nInput+1] = inPattern[0]
   nodeAct[:,1:nInput+1] = inPattern
@@ -251,10 +263,13 @@ def act(weights, aVec, nInput, nOutput, inPattern):
   # Propagate signal through hidden to output nodes
   iNode = nInput+1
   for iNode in range(nInput+1,nNodes):
-      rawAct = np.dot(nodeAct, wMat[:,iNode]).squeeze()
+      #   rawAct = np.dot(nodeAct, wMat[:,iNode]).squeeze()
+    #   print("ind.py: nodeAct shape: ", nodeAct.shape, "wMat[:,iNode] shape: ", wMat[:,iNode].shape)
+      rawAct = torch.dot(nodeAct.squeeze().float(), wMat[:,iNode].float()).squeeze()
       nodeAct[:,iNode] = applyAct(aVec[iNode], rawAct) 
       #print(nodeAct)
-  output = nodeAct[:,-nOutput:]   
+  output = nodeAct[:,-nOutput:]
+#   print("ind.py: output type: ", type(output))
   return output
 
 def applyAct(actId, x):
@@ -282,41 +297,60 @@ def applyAct(actId, x):
     output  - (float) - value after activation is applied
               [? X ?] - same dimensionality as input
   """
+#   x = torch.tensor(x)
   if actId == 1:   # Linear
+    # print("ind.py: applyAct: linear")
     value = x
 
   if actId == 2:   # Unsigned Step Function
+    # print("ind.py: applyAct: Unsigned Step Function")
     value = 1.0*(x>0.0)
     #value = (np.tanh(50*x/2.0) + 1.0)/2.0
 
   elif actId == 3: # Sin
-    value = np.sin(np.pi*x) 
+    # print("ind.py: applyAct: Sin")
+    # value = np.sin(np.pi*x)
+    value = torch.sin(torch.pi*x)
 
   elif actId == 4: # Gaussian with mean 0 and sigma 1
-    value = np.exp(-np.multiply(x, x) / 2.0)
+    # print("ind.py: applyAct: Gaussian with mean 0 and sigma 1")
+    # value = np.exp(-np.multiply(x, x) / 2.0)
+    value = torch.exp(-torch.multiply(x, x) / 2.0)
 
   elif actId == 5: # Hyperbolic Tangent (signed)
-    value = np.tanh(x)     
+    # print("ind.py: applyAct: Hyperbolic Tangent (signed)")
+    # value = np.tanh(x)
+    value = torch.tanh(x)
 
   elif actId == 6: # Sigmoid (unsigned)
-    value = (np.tanh(x/2.0) + 1.0)/2.0
+    # print("ind.py: applyAct: Sigmoid (unsigned)")
+    # value = (np.tanh(x/2.0) + 1.0)/2.0
+    value = (torch.tanh(x/2.0) + 1.0)/2.0
 
   elif actId == 7: # Inverse
+    # print("ind.py: applyAct: Inverse")
     value = -x
 
   elif actId == 8: # Absolute Value
+    # print("ind.py: applyAct: Absolute Value")
     value = abs(x)   
     
   elif actId == 9: # Relu
-    value = np.maximum(0, x)   
+    # print("ind.py: applyAct: Relu")
+    # value = np.maximum(0, x)
+    value = torch.maximum(torch.tensor(0.0), x)
 
   elif actId == 10: # Cosine
-    value = np.cos(np.pi*x)
+    # print("ind.py: applyAct: Cosine")
+    # value = np.cos(np.pi*x)
+    value = torch.cos(torch.tensor(math.pi)*x)
 
   elif actId == 11: # Squared
+    # print("ind.py: applyAct: Squared")
     value = x**2
     
   else:
+    # print("ind.py: applyAct: no change")
     value = x
 
   return value
@@ -357,10 +391,12 @@ def softmax(x):
   Todo: Untangle all the transposes...    
   """  
   if x.ndim == 1:
-    e_x = np.exp(x - np.max(x))
+    # e_x = np.exp(x - np.max(x))
+    e_x = torch.exp(x - torch.max(x))
     return e_x / e_x.sum(axis=0)
   else:
-    e_x = np.exp(x.T - np.max(x,axis=1))
+    # e_x = np.exp(x.T - np.max(x,axis=1))
+    e_x = torch.exp(x.T - torch.max(x,axis=1))
     return (e_x / e_x.sum(axis=0)).T
 
 

@@ -53,7 +53,8 @@ except ImportError as e:
 
 FPS    = 50
 # FPS    = 200
-SCALE  = 50.0   # affects how fast-paced the game is, forces should be adjusted as well
+# DO NOT change scale for a trained agent, otherwise the parameters are not correct any more
+SCALE  = 30.0   # affects how fast-paced the game is, forces should be adjusted as well
 
 MOTORS_TORQUE = 80
 SPEED_HIP     = 4
@@ -156,15 +157,20 @@ class BipedalWalker(gym.Env):
 
         self.reset()
 
-        high = np.array([np.inf]*24)
+        high = np.array([np.inf]*24).astype(np.float32)
         # self.action_space = spaces.Box(np.array([-1,-1,-1,-1]), np.array([+1,+1,+1,+1]))
-        self.action_space = spaces.Box(np.array([-1,-1,-1,-1]).astype(np.float32), np.array([+1,+1,+1,+1]).astype(np.float32))
+        print("bipedal_walker.py: BipedalWalker: __init__(): before action_space")
+        self.action_space = spaces.Box(
+            np.array([-1,-1,-1,-1]).astype(np.float32), 
+            np.array([+1,+1,+1,+1]).astype(np.float32),
+        )
+        print("bipedal_walker.py: BipedalWalker: __init__(): before spaces")
         self.observation_space = spaces.Box(-high, high)
 
         self.timer = 0
         self.screen: Optional[pygame.Surface] = None
         self.clock = None 
-        print("bipedal_walker.py: BipedalWalker: __init__()")
+        print("bipedal_walker.py: BipedalWalker: __init__(): end")
 
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)

@@ -8,6 +8,8 @@ from .ind import *
 import gymnasium as gym
 # import gym
 
+import torch
+
 class Task():
   """Problem domain to be solved by neural network. Uses OpenAI Gym patterns.
   """ 
@@ -68,11 +70,23 @@ class Task():
     # else:
     #   state, _ = self.env.reset()
     state = self.env.reset()
-    # print("task.py(): Task: testInd(): after env.reset(): ")
+    # print("task.py(): Task: testInd(): after env.reset(): type of state: ", type(state))
+    # print("task.py(): Task: testInd(): after env.reset(): type of self.nInput: ", type(self.nInput))
+    # print("task.py(): Task: testInd(): after env.reset(): type of self.nOutput: ", type(self.nOutput))
+    # print("task.py(): Task: testInd(): after env.reset(): wVec type:", np.shape(wVec), " wVec: ")
+    # print(wVec)
+    # print("task.py(): Task: testInd(): after env.reset(): aVec shape:", np.shape(aVec), " aVec: ")
+    # print(aVec)
 
     self.env.t = 0
 
-    annOut = act(wVec, aVec, self.nInput, self.nOutput, state)  
+    # annOut = act(wVec, aVec, self.nInput, self.nOutput, state)
+    wVec_tensor = torch.from_numpy(wVec)
+    aVec_tensor = torch.from_numpy(aVec)
+    state_tensor = torch.from_numpy(state)
+    nInput_tensor = torch.tensor(self.nInput)
+    nOutput_tensor = torch.tensor(self.nOutput)
+    annOut = act(wVec_tensor, aVec_tensor, nInput_tensor, nOutput_tensor, state_tensor)
     action = selectAct(annOut,self.actSelect)    
     # print(self.env.step(action))
     state, reward, done, info = self.env.step(action)
@@ -84,7 +98,13 @@ class Task():
     
     # print("task.py(): Task: testInd(): before for tStep in range(self.maxEpisodeLength): ")
     for tStep in range(self.maxEpisodeLength): 
-      annOut = act(wVec, aVec, self.nInput, self.nOutput, state) 
+    #   annOut = act(wVec, aVec, self.nInput, self.nOutput, state)
+    #   wVec_tensor = torch.from_numpy(wVec)
+    #   aVec_tensor = torch.from_numpy(aVec)
+      state_tensor = torch.from_numpy(state)
+    #   nInput_tensor = torch.tensor(self.nInput)
+    #   nOutput_tensor = torch.tensor(self.nOutput)
+      annOut = act(wVec_tensor, aVec_tensor, nInput_tensor, nOutput_tensor, state_tensor) 
       action = selectAct(annOut,self.actSelect) 
       state, reward, done, info = self.env.step(action)
     #   state, reward, done, _, info = self.env.step(action)
