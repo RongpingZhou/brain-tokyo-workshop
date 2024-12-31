@@ -74,12 +74,13 @@ class ActorCritic(nn.Module):
         return output1, c1
 
 model = ActorCritic()
-model.load_state_dict(torch.load('champions/model_updates90000_best.pth', weights_only=True))
+# model.load_state_dict(torch.load('champions/model_updates90000_best.pth', weights_only=True))
+model.load_state_dict(torch.load('saved_models/model_updates90000.pth', weights_only=True))
 model.eval()
 
+env = FlappyBirdEnv(FPS = 300, render_mode = "human")
+
 with torch.no_grad():
-    env = FlappyBirdEnv(FPS = 300, render_mode = "human")
-    # game_state = game.GameState(300)
 
     currentScore = 0
     topScore = 0
@@ -99,7 +100,7 @@ with torch.no_grad():
             if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE): 
                 # run = False
                 print("escape")
-                pygame.quit() 
+                env.close() 
                 quit()
 
         if FIRST_FRAME:
@@ -144,7 +145,7 @@ with torch.no_grad():
                 print("Total episodes are: ", episodes)
                 print("min: " + str(min_score) + " max: " + str(max_score) + " median: " + str(median) + " average: " + str(average))
             # if episodes > 100:
-            if episodes > 10:
+            if episodes > 2:
                 break   
 
             # f = open("rewards.txt","a")
@@ -178,7 +179,7 @@ with torch.no_grad():
         
         print("min: " + str(min_score) + " max: " + str(max_score) + " median: " + str(median) + " average: " + str(average))
 
-pygame.quit()
+env.close()
 time.sleep(2)
 
 quit()

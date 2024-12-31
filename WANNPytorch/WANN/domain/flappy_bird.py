@@ -29,7 +29,7 @@ pygame.init()
 
 FPSCLOCK = pygame.time.Clock()
 
-SCREEN = pygame.display.set_mode((SCREENWIDTH, SCREENHEIGHT))
+SCREEN = pygame.display.set_mode((SCREENWIDTH, SCREENHEIGHT), pygame.HIDDEN)
 
 pygame.display.set_caption('Flappy Bird')
 
@@ -57,8 +57,8 @@ class FlappyBirdEnv(gym.Env):
         self.render_mode = render_mode
         
         # self.fpsclock = pygame.time.Clock()
-        # if render_mode == "human":
-        #     self.SCREEN = pygame.display.set_mode((SCREENWIDTH, SCREENHEIGHT))
+        if render_mode == "human":
+            self.SCREEN = pygame.display.set_mode((SCREENWIDTH, SCREENHEIGHT))
         # else:
         #     self.SCREEN = pygame.display.set_mode((SCREENWIDTH, SCREENHEIGHT), pygame.HIDDEN)
 
@@ -327,6 +327,7 @@ class FlappyBirdEnv(gym.Env):
         if SCREEN is not None:
             pygame.display.quit()
             pygame.quit()
+            print("flappy_bird.py: FlappyBirdEnv: close(): quit pygame")
 
 def getRandomPipe():
     """returns a randomly generated pipe"""
